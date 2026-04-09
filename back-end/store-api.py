@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 app = FastAPI()
 
@@ -18,6 +19,8 @@ def get_order():
 
 @app.post("/pay")
 def pay():
+    if order["status"] != "PENDING":
+        return JSONResponse({"error": "Order already paid"}, status_code=400)
     order["status"] = "PAID"
     return order
 

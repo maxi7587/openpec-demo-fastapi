@@ -45,6 +45,28 @@ class TestPayOrder:
         # Verify persisted state
         assert client.get("/order").json()["status"] == "PAID"
 
+    def test_pay_when_already_paid(self, client):
+        """GIVEN order PAID, WHEN POST /pay, THEN 400 with error, status remains PAID."""
+        order["status"] = "PAID"
+
+        res = client.post("/pay")
+        assert res.status_code == 400
+        assert res.json()["error"] == "Order already paid"
+
+        # Verify status unchanged
+        assert client.get("/order").json()["status"] == "PAID"
+
+    def test_pay_when_already_shipped(self, client):
+        """GIVEN order SHIPPED, WHEN POST /pay, THEN 400 with error, status remains SHIPPED."""
+        order["status"] = "SHIPPED"
+
+        res = client.post("/pay")
+        assert res.status_code == 400
+        assert res.json()["error"] == "Order already paid"
+
+        # Verify status unchanged
+        assert client.get("/order").json()["status"] == "SHIPPED"
+
 
 # ── Requirement: Ship Order ─────────────────────────────────────────────
 
