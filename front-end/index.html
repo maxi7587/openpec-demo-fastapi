@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Flow Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 480px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    /* Status badge */
+    .status-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+
+    .status-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .status-value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .status-value.PENDING  { color: #f59e0b; }
+    .status-value.PAID     { color: #3b82f6; }
+    .status-value.SHIPPED  { color: #10b981; }
+
+    /* Flow diagram */
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    .flow .step {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      background: #fff;
+    }
+
+    .flow .step.active {
+      border-color: #3b82f6;
+      color: #3b82f6;
+      font-weight: 600;
+    }
+
+    .flow .arrow { font-size: 1rem; }
+
+    /* Buttons */
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:hover { opacity: 0.85; }
+
+    .btn-pay   { background: #3b82f6; color: #fff; }
+    .btn-ship  { background: #10b981; color: #fff; }
+    .btn-reset { background: #e5e7eb; color: #555; }
+
+    /* Message area */
+    .message {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .message.error   { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .message.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+
+    /* Log */
+    .log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.8rem;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .log-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .log-entry { margin-bottom: 4px; white-space: pre-wrap; }
+    .log-entry .method { color: #c586c0; }
+    .log-entry .url    { color: #9cdcfe; }
+    .log-entry .ok     { color: #6a9955; }
+    .log-entry .err    { color: #f44747; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Order Flow Demo</h1>
+
+    <!-- Current status -->
+    <div class="status-card">
+      <div class="status-label">Order Status</div>
+      <div class="status-value" id="status">—</div>
+    </div>
+
+    <!-- Flow diagram -->
+    <div class="flow">
+      <span class="step" id="step-PENDING">PENDING</span>
+      <span class="arrow">→</span>
+      <span class="step" id="step-PAID">PAID</span>
+      <span class="arrow">→</span>
+      <span class="step" id="step-SHIPPED">SHIPPED</span>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="actions">
+      <button class="btn-pay" onclick="callApi('POST', '/pay')">Pay</button>
+      <button class="btn-ship" onclick="callApi('POST', '/ship')">Ship</button>
+    </div>
+    <button class="btn-reset" style="width:100%" onclick="callApi('POST', '/reset')">Reset Order</button>
+
+    <!-- Message (error/success) -->
+    <div class="message" id="message"></div>
+
+    <!-- Request log -->
+    <div style="margin-top: 24px;">
+      <div class="log-title">Request Log</div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://localhost:8000";
+
+    // Fetch current status on load
+    window.addEventListener("DOMContentLoaded", () => {
+      callApi("GET", "/order");
+    });
+
+    async function callApi(method, path) {
+      const msg = document.getElementById("message");
+      msg.className = "message"; // hide
+
+      try {
+        const res = await fetch(API + path, { method });
+        const data = await res.json();
+
+        logRequest(method, path, data);
+
+        if (data.error) {
+          showMessage("error", data.error);
+        } else {
+          showMessage("success", `Status → ${data.status}`);
+          updateStatus(data.status);
+        }
+      } catch (err) {
+        logRequest(method, path, { error: err.message });
+        showMessage("error", "Could not reach API. Is the server running?");
+      }
+    }
+
+    function updateStatus(status) {
+      const el = document.getElementById("status");
+      el.textContent = status;
+      el.className = "status-value " + status;
+
+      // Highlight active step in flow
+      ["PENDING", "PAID", "SHIPPED"].forEach((s) => {
+        document.getElementById("step-" + s).classList.toggle("active", s === status);
+      });
+    }
+
+    function showMessage(type, text) {
+      const el = document.getElementById("message");
+      el.textContent = text;
+      el.className = "message " + type;
+    }
+
+    function logRequest(method, path, data) {
+      const log = document.getElementById("log");
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+
+      const isError = data.error;
+      const statusClass = isError ? "err" : "ok";
+      const body = JSON.stringify(data);
+
+      entry.innerHTML =
+        `<span class="method">${method}</span> <span class="url">${path}</span> → <span class="${statusClass}">${body}</span>`;
+
+      log.prepend(entry);
+    }
+  </script>
+</body>
+</html>
