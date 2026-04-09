@@ -73,6 +73,40 @@ curl -X POST localhost:8000/ship
 
 ---
 
+---
+
+# 🧪 5. Tests
+
+Tests are derived from the OpenSpec scenarios in `openspec/specs/order/spec.md` and `openspec/specs/ui/spec.md`.
+
+## Run all tests
+
+```bash
+./run.sh test
+```
+
+## Run back-end tests only
+
+```bash
+./run.sh test be
+```
+
+Requires `pytest` and `httpx`:
+
+```bash
+pip install pytest httpx
+```
+
+## Run front-end tests only
+
+```bash
+./run.sh test fe
+```
+
+Requires Node.js 18+.
+
+---
+
 # 🧠 Takeaway
 
 > OpenSpec no solo documenta el sistema.
